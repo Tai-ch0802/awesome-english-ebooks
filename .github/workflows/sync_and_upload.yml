@@ -4,7 +4,7 @@ name: Sync Fork and Upload PDFs to S3
 on:
   schedule:
     # 設定為每天 UTC 時間 0 點執行 (你可以根據需要調整)
-    - cron: '0 0 * * *'
+    - cron: '0 */6 * * *'
   # 允許手動觸發
   workflow_dispatch:
 
