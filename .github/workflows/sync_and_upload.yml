@@ -19,15 +19,13 @@ jobs:
       - name: Checkout Fork Repo
         uses: actions/checkout@v4
         with:
-          # 需要 fetch-depth: 0 才能比較完整的歷史紀錄來找出差異
           fetch-depth: 0
-          # 如果你的主要分支不是 main，請修改這裡
           ref: master
 
       - name: Set up Git
         run: |
           git config --global user.name 'tai[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global user.email 'tai@taiwan-no1.net'
 
       - name: Add Upstream Remote
         run: |
@@ -121,6 +119,4 @@ jobs:
         # 只有在確定有變更時才執行
         if: steps.check_changes.outputs.changed == 'true'
         run: |
-          # 推送合併後的結果到你的 fork 的 main 分支
-          # 如果分支不同，請修改 main
-          git push origin main
+          git push origin master
