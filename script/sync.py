@@ -21,6 +21,7 @@ def upload_to_s3(file_path, bucket_name, s3_key):
     aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
     aws_secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
     aws_region = os.environ.get('AWS_REGION')
+    endpoint_url = os.environ.get('S3_ENDPOINT')
 
     if not all([aws_access_key_id, aws_secret_access_key, aws_region, bucket_name]):
         logging.error("缺少必要的 AWS 配置 (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME)")
@@ -29,6 +30,7 @@ def upload_to_s3(file_path, bucket_name, s3_key):
     # 建立 S3 client
     s3_client = boto3.client(
         's3',
+        endpoint_url=endpoint_url,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
         region_name=aws_region
