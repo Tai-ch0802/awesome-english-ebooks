@@ -111,6 +111,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }} # 例如: us-east-1
           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
         # 使用 xargs 將檔案列表安全地傳遞給 python 腳本
         run: |
           echo ${{ steps.find_pdfs.outputs.pdf_list }} | xargs python script/sync.py
