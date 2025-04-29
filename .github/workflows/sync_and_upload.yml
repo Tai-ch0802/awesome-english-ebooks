@@ -1,0 +1,126 @@
+# .github/workflows/sync_and_upload.yml
+name: Sync Fork and Upload PDFs to S3
+
+on:
+  schedule:
+    # 設定為每天 UTC 時間 0 點執行 (你可以根據需要調整)
+    - cron: '0 0 * * *'
+  # 允許手動觸發
+  workflow_dispatch:
+
+# 設定 Git 推送的預設行為
+permissions:
+  contents: write # 允許 workflow 修改 repo 內容 (推送合併結果)
+
+jobs:
+  sync_upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Fork Repo
+        uses: actions/checkout@v4
+        with:
+          # 需要 fetch-depth: 0 才能比較完整的歷史紀錄來找出差異
+          fetch-depth: 0
+          # 如果你的主要分支不是 main，請修改這裡
+          ref: master
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'tai[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add Upstream Remote
+        run: |
+          git remote add upstream https://github.com/hehonghui/awesome-english-ebooks.git
+
+      - name: Fetch Upstream Changes
+        run: git fetch upstream
+
+      - name: Get Current Commit Hash
+        id: get_before_sha
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Merge Upstream Changes
+        id: merge
+        run: |
+          git merge upstream/master -m "Merge remote-tracking branch 'upstream/master'" || echo "MERGE_CONFLICT=true" >> $GITHUB_ENV
+        continue-on-error: true
+
+      - name: Check for Merge Conflicts
+        if: env.MERGE_CONFLICT == 'true'
+        run: |
+          echo "::error::Merge conflict detected. Please resolve conflicts manually."
+          git status
+          git merge --abort
+          exit 1
+
+      - name: Get After Merge Commit Hash
+        id: get_after_sha
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Check for Changes
+        id: check_changes
+        run: |
+          if [[ "${{ steps.get_before_sha.outputs.sha }}" == "${{ steps.get_after_sha.outputs.sha }}" ]]; then
+            echo "No new commits from upstream."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "New commits merged from upstream."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Find Changed PDF Files
+        id: find_pdfs
+        # 只有在確定有變更時才執行
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          # 找出在合併前後兩個 commit 之間變動的 .pdf 檔案
+          # 使用 --diff-filter=AM 表示只找新增(A)和修改(M)的檔案
+          PDF_FILES=$(git diff --name-only --diff-filter=AM ${{ steps.get_before_sha.outputs.sha }} ${{ steps.get_after_sha.outputs.sha }} | grep '\.pdf$' || true)
+          if [[ -z "$PDF_FILES" ]]; then
+            echo "No PDF files changed in this sync."
+            echo "pdfs_found=false" >> $GITHUB_OUTPUT
+            echo "pdf_list=''" >> $GITHUB_OUTPUT # 確保 pdf_list 有值
+          else
+            echo "Found changed PDF files:"
+            echo "$PDF_FILES"
+            # 將換行符替換為空格，以便作為命令列參數傳遞
+            # 同時處理可能包含空格的檔名 (雖然不建議)，加上引號
+            PDF_LIST_ARGS=$(echo "$PDF_FILES" | awk '{printf "\"%s\" ", $0}')
+            echo "pdf_list=$PDF_LIST_ARGS" >> $GITHUB_OUTPUT
+            echo "pdfs_found=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python
+        # 只有在找到變更的 PDF 時才執行
+        if: steps.find_pdfs.outputs.pdfs_found == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # 使用 Python 3
+
+      - name: Install Dependencies
+        # 只有在找到變更的 PDF 時才執行
+        if: steps.find_pdfs.outputs.pdfs_found == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Upload PDFs to S3
+        # 只有在找到變更的 PDF 時才執行
+        if: steps.find_pdfs.outputs.pdfs_found == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }} # 例如: us-east-1
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        # 使用 xargs 將檔案列表安全地傳遞給 python 腳本
+        run: |
+          echo ${{ steps.find_pdfs.outputs.pdf_list }} | xargs python script/sync.py
+
+      - name: Push Changes to Fork
+        # 只有在確定有變更時才執行
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          # 推送合併後的結果到你的 fork 的 main 分支
+          # 如果分支不同，請修改 main
+          git push origin main
