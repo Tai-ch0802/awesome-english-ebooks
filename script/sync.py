@@ -4,6 +4,7 @@ import sys
 import boto3
 from botocore.exceptions import ClientError
 import logging
+import pathlib
 
 # 設定日誌
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
