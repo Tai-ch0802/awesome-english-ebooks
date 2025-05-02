@@ -38,7 +38,7 @@ def transform_path_to_s3_key(repo_path_str):
                 category = first_dir[underscore_index + 1:]
 
                 # 組合新的 S3 key: category/filename
-                s3_key = f"{category}/{filename}"
+                s3_key = f"others/{category}/{filename}"
                 logging.info(f"路徑轉換: '{repo_path_str}' -> S3 Key: '{s3_key}'")
                 return s3_key
             else:
